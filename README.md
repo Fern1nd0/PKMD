@@ -27,6 +27,10 @@ python3 pkmd_bot_v13.py --max-runtime 10
 Manter a evolução do bot concentrada no arquivo principal `pkmd_bot_v13.py`,
 com uma base estável para incrementos reais.
 
+> Observação: no estado atual, o entrypoint roda em **dry-run** por padrão
+> (telemetria/latência). A integração live com leitura/decisão/ação ainda deve
+> ser implementada no método `_tick`.
+
 ## Revisão técnica
 
 - Ver relatório: `REVISAO_BOT_COMPLETO.md`.

@@ -101,6 +101,7 @@ class PKMDBot:
         self._error_count = 0
         self._stop_event = threading.Event()
         self.metrics = RuntimeMetrics()
+        self._dry_run_notice_emitted = False
 
     def start(self) -> None:
         if self.state == BotState.RUNNING:
@@ -109,6 +110,10 @@ class PKMDBot:
         self.state = BotState.RUNNING
         self.metrics.started_at = time.monotonic()
         logging.info("Bot iniciado | dry_run=%s", self.config.dry_run)
+        if self.config.dry_run:
+            logging.warning(
+                "Modo dry-run ativo: este processo NÃO envia teclas nem interage com o jogo."
+            )
         self._run_loop()
 
     def stop(self) -> None:
@@ -182,9 +187,15 @@ class PKMDBot:
         - Executar ação permitida
         """
         if self.config.dry_run:
+            if not self._dry_run_notice_emitted:
+                logging.info("Dry-run: loop ativo somente para telemetria/latência.")
+                self._dry_run_notice_emitted = True
             logging.debug("tick executado (dry-run)")
             return
-        logging.debug("tick executado")
+        raise RuntimeError(
+            "Modo live ainda não implementado neste entrypoint. "
+            "Integre sua pipeline de leitura/decisão/ação no método _tick."
+        )
 
 
 def _configure_logging(log_dir: Path, verbose: bool = False) -> None:
