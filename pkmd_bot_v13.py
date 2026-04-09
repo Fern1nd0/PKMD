@@ -39,6 +39,8 @@ class BotConfig:
     dry_run: bool = True
     report_every_ticks: int = 50
     max_runtime_seconds: float = 0.0
+    loop_budget_ms: float = 25.0
+    emergency_hp_percent: float = 30.0
 
     @staticmethod
     def _as_bool(value: Any, default: bool) -> bool:
@@ -64,6 +66,8 @@ class BotConfig:
             dry_run=cls._as_bool(payload.get("dry_run"), cls.dry_run),
             report_every_ticks=int(payload.get("report_every_ticks", cls.report_every_ticks)),
             max_runtime_seconds=float(payload.get("max_runtime_seconds", cls.max_runtime_seconds)),
+            loop_budget_ms=float(payload.get("loop_budget_ms", cls.loop_budget_ms)),
+            emergency_hp_percent=float(payload.get("emergency_hp_percent", cls.emergency_hp_percent)),
         )
 
         if cfg.tick_seconds <= 0:
@@ -74,6 +78,10 @@ class BotConfig:
             raise ValueError("report_every_ticks deve ser >= 1")
         if cfg.max_runtime_seconds < 0:
             raise ValueError("max_runtime_seconds deve ser >= 0")
+        if cfg.loop_budget_ms <= 0:
+            raise ValueError("loop_budget_ms deve ser > 0")
+        if not (0 < cfg.emergency_hp_percent <= 100):
+            raise ValueError("emergency_hp_percent deve estar entre 0 e 100")
         return cfg
 
 
@@ -82,6 +90,8 @@ class RuntimeMetrics:
     ticks: int = 0
     errors: int = 0
     started_at: float = 0.0
+    late_ticks: int = 0
+    max_tick_ms: float = 0.0
 
 
 class PKMDBot:
@@ -106,9 +116,11 @@ class PKMDBot:
         self.state = BotState.STOPPED
         uptime = time.monotonic() - self.metrics.started_at if self.metrics.started_at else 0.0
         logging.info(
-            "Bot finalizado | ticks=%s erros=%s uptime=%.2fs",
+            "Bot finalizado | ticks=%s erros=%s late=%s max_tick=%.2fms uptime=%.2fs",
             self.metrics.ticks,
             self.metrics.errors,
+            self.metrics.late_ticks,
+            self.metrics.max_tick_ms,
             uptime,
         )
 
@@ -129,11 +141,23 @@ class PKMDBot:
                 break
 
             try:
+                tick_start = time.monotonic()
                 self._tick()
                 self._error_count = 0
                 self.metrics.ticks += 1
+                elapsed_ms = (time.monotonic() - tick_start) * 1000.0
+                if elapsed_ms > self.config.loop_budget_ms:
+                    self.metrics.late_ticks += 1
+                self.metrics.max_tick_ms = max(self.metrics.max_tick_ms, elapsed_ms)
                 if self.metrics.ticks % self.config.report_every_ticks == 0:
-                    logging.info("Progresso | ticks=%s erros=%s", self.metrics.ticks, self.metrics.errors)
+                    logging.info(
+                        "Progresso | ticks=%s erros=%s late=%s max_tick=%.2fms budget=%.2fms",
+                        self.metrics.ticks,
+                        self.metrics.errors,
+                        self.metrics.late_ticks,
+                        self.metrics.max_tick_ms,
+                        self.config.loop_budget_ms,
+                    )
                 if not self._sleep_interruptible(self.config.tick_seconds):
                     break
             except Exception as exc:  # noqa: BLE001

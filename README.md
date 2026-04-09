@@ -30,3 +30,4 @@ com uma base estável para incrementos reais.
 ## Revisão técnica
 
 - Ver relatório: `REVISAO_BOT_COMPLETO.md`.
+- Guia de baixa latência sem injeção: `LATENCIA_BAIXA_SEM_INJECAO.md`.
